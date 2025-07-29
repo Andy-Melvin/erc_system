@@ -1,7 +1,8 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext, useEffect, useState } from "react";
+import { User, Session } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface AuthUser {
   id: string;
@@ -19,7 +20,10 @@ interface AuthContextType {
   user: AuthUser | null;
   session: Session | null;
   loading: boolean;
-  signInWithAccessCode: (email: string, accessCode: string) => Promise<{ error?: string }>;
+  signInWithAccessCode: (
+    email: string,
+    accessCode: string
+  ) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<AuthUser>) => Promise<{ error?: string }>;
 }
@@ -34,41 +38,88 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        
-        if (session?.user) {
-          // Fetch user profile from our custom users table
-          const { data: userProfile, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('auth_user_id', session.user.id)
-            .single();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setSession(session);
 
-          if (userProfile && !error) {
-            setUser({
-              id: userProfile.id,
-              email: userProfile.email,
-              full_name: userProfile.full_name,
-              role: userProfile.role,
-              family_category: userProfile.family_category,
-              family_name: userProfile.family_name,
-              access_code: userProfile.access_code,
-              profile_picture: userProfile.profile_picture,
-              bio: userProfile.bio,
-            });
-          } else {
-            console.error('Error fetching user profile:', error);
-            setUser(null);
+      if (session?.user) {
+        // Debug: log session user id and email
+        console.log("Auth session.user.id:", session.user.id);
+        console.log("Auth session.user.email:", session.user.email);
+
+        // Try to fetch user profile by auth_user_id
+        let userProfile, error;
+        {
+          const result = await supabase
+            .from("users")
+            .select("*")
+            .eq("auth_user_id", session.user.id)
+            .single();
+          userProfile = result.data;
+          error = result.error;
+          // Debug: log result of fetch by auth_user_id
+          console.log("Fetch by auth_user_id result:", userProfile, error);
+        }
+
+        if (!userProfile) {
+          // Fallback: try to find by email
+          const { data: userByEmail, error: emailError } = await supabase
+            .from("users")
+            .select("*")
+            .eq("email", session.user.email)
+            .single();
+          // Debug: log result of fetch by email
+          console.log("Fetch by email result:", userByEmail, emailError);
+
+          if (userByEmail) {
+            // Link the user
+            const updateRes = await supabase
+              .from("users")
+              .update({ auth_user_id: session.user.id })
+              .eq("id", userByEmail.id);
+            // Debug: log result of update
+            console.log("Update auth_user_id result:", updateRes);
+
+            // Fetch again by auth_user_id
+            const { data: linkedProfile, error: linkedError } = await supabase
+              .from("users")
+              .select("*")
+              .eq("auth_user_id", session.user.id)
+              .single();
+            // Debug: log result of fetch after linking
+            console.log(
+              "Fetch after linking result:",
+              linkedProfile,
+              linkedError
+            );
+
+            userProfile = linkedProfile;
           }
+        }
+
+        if (userProfile) {
+          setUser({
+            id: userProfile.id,
+            email: userProfile.email,
+            full_name: userProfile.full_name,
+            role: userProfile.role,
+            family_category: userProfile.family_category,
+            family_name: userProfile.family_name,
+            access_code: userProfile.access_code,
+            profile_picture: userProfile.profile_picture,
+            bio: userProfile.bio,
+          });
         } else {
+          console.error("Error fetching user profile:", error);
           setUser(null);
         }
-        
-        setLoading(false);
+      } else {
+        setUser(null);
       }
-    );
+
+      setLoading(false);
+    });
 
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -85,51 +136,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
 
+      // Debug: log input values
+      console.log("signInWithAccessCode called with:", email, accessCode);
+
       // First, verify the access code exists in our users table
       const { data: userRecord, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .eq('access_code', accessCode)
+        .from("users")
+        .select("*")
+        .eq("email", email)
+        .eq("access_code", accessCode)
         .single();
 
+      // Debug: log query result
+      console.log("Sign-in query result:", userRecord, userError);
+
       if (userError || !userRecord) {
-        return { error: 'Invalid email or access code' };
+        return { error: "Invalid email or access code" };
       }
 
       // Check if auth user exists, if not create one
       let authUserId = userRecord.auth_user_id;
-      
+
       if (!authUserId) {
         // Create auth user with a consistent password based on access code
-        const consistentPassword = `user_${accessCode}_auth`;
-        
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email,
-          password: consistentPassword,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-            data: {
-              full_name: userRecord.full_name,
-              role: userRecord.role,
-            }
+        const consistentPassword = `${accessCode}`;
+
+        const { data: authData, error: authError } = await supabase.auth.signUp(
+          {
+            email,
+            password: consistentPassword,
+            options: {
+              emailRedirectTo: `${window.location.origin}/`,
+              data: {
+                full_name: userRecord.full_name,
+                role: userRecord.role,
+              },
+            },
           }
-        });
+        );
 
         if (authError || !authData.user) {
-          return { error: 'Failed to create authentication account' };
+          return { error: "Failed to create authentication account" };
         }
 
         authUserId = authData.user.id;
 
         // Update the users table with the auth_user_id
         const { error: updateError } = await supabase
-          .from('users')
+          .from("users")
           .update({ auth_user_id: authUserId })
-          .eq('id', userRecord.id);
+          .eq("id", userRecord.id);
 
         if (updateError) {
-          console.error('Error linking auth user:', updateError);
+          console.error("Error linking auth user:", updateError);
         }
 
         // Sign in with the consistent password
@@ -139,12 +198,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         if (signInError) {
-          return { error: 'Authentication failed' };
+          return { error: "Authentication failed" };
         }
       } else {
         // User already has auth account, sign in with consistent password
-        const consistentPassword = `user_${accessCode}_auth`;
-        
+        const consistentPassword = `${accessCode}`;
+
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password: consistentPassword,
@@ -153,26 +212,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (signInError) {
           // If sign in fails, the password might be different, try to update it
           try {
-            const { error: adminError } = await supabase.auth.admin.updateUserById(
-              authUserId,
-              { password: consistentPassword }
-            );
-
-            if (!adminError) {
-              const { error: retrySignInError } = await supabase.auth.signInWithPassword({
-                email,
+            const { error: adminError } =
+              await supabase.auth.admin.updateUserById(authUserId, {
                 password: consistentPassword,
               });
 
+            if (!adminError) {
+              const { error: retrySignInError } =
+                await supabase.auth.signInWithPassword({
+                  email,
+                  password: consistentPassword,
+                });
+
               if (retrySignInError) {
-                return { error: 'Authentication failed' };
+                return { error: "Authentication failed" };
               }
             } else {
-              return { error: 'Authentication setup failed' };
+              return { error: "Authentication setup failed" };
             }
           } catch (adminUpdateError) {
             // If admin update fails, try creating a new auth session
-            return { error: 'Authentication failed. Please contact administrator.' };
+            return {
+              error: "Authentication failed. Please contact administrator.",
+            };
           }
         }
       }
@@ -184,8 +246,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return {};
     } catch (error) {
-      console.error('Sign in error:', error);
-      return { error: 'An unexpected error occurred' };
+      console.error("Sign in error:", error);
+      return { error: "An unexpected error occurred" };
     } finally {
       setLoading(false);
     }
@@ -208,21 +270,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateProfile = async (updates: Partial<AuthUser>) => {
-    if (!user) return { error: 'Not authenticated' };
+    if (!user) return { error: "Not authenticated" };
 
     try {
       const { error } = await supabase
-        .from('users')
+        .from("users")
         .update(updates)
-        .eq('id', user.id);
+        .eq("id", user.id);
 
       if (error) {
         return { error: error.message };
       }
 
       // Update local user state
-      setUser(prev => prev ? { ...prev, ...updates } : null);
-      
+      setUser((prev) => (prev ? { ...prev, ...updates } : null));
+
       toast({
         title: "Profile Updated",
         description: "Your profile has been successfully updated.",
@@ -230,8 +292,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return {};
     } catch (error) {
-      console.error('Update profile error:', error);
-      return { error: 'Failed to update profile' };
+      console.error("Update profile error:", error);
+      return { error: "Failed to update profile" };
     }
   };
 
@@ -250,7 +312,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }
