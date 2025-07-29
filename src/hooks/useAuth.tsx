@@ -44,10 +44,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
 
       if (session?.user) {
-        // Debug: log session user id and email
-        console.log("Auth session.user.id:", session.user.id);
-        console.log("Auth session.user.email:", session.user.email);
-
         // Try to fetch user profile by auth_user_id
         let userProfile, error;
         {
@@ -58,8 +54,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .single();
           userProfile = result.data;
           error = result.error;
-          // Debug: log result of fetch by auth_user_id
-          console.log("Fetch by auth_user_id result:", userProfile, error);
         }
 
         if (!userProfile) {
@@ -69,30 +63,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .select("*")
             .eq("email", session.user.email)
             .single();
-          // Debug: log result of fetch by email
-          console.log("Fetch by email result:", userByEmail, emailError);
 
           if (userByEmail) {
-            // Link the user
-            const updateRes = await supabase
+            await supabase
               .from("users")
               .update({ auth_user_id: session.user.id })
               .eq("id", userByEmail.id);
-            // Debug: log result of update
-            console.log("Update auth_user_id result:", updateRes);
 
             // Fetch again by auth_user_id
-            const { data: linkedProfile, error: linkedError } = await supabase
+            const { data: linkedProfile } = await supabase
               .from("users")
               .select("*")
               .eq("auth_user_id", session.user.id)
               .single();
-            // Debug: log result of fetch after linking
-            console.log(
-              "Fetch after linking result:",
-              linkedProfile,
-              linkedError
-            );
 
             userProfile = linkedProfile;
           }
@@ -136,9 +119,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
 
-      // Debug: log input values
-      console.log("signInWithAccessCode called with:", email, accessCode);
-
       // First, verify the access code exists in our users table
       const { data: userRecord, error: userError } = await supabase
         .from("users")
@@ -146,9 +126,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq("email", email)
         .eq("access_code", accessCode)
         .single();
-
-      // Debug: log query result
-      console.log("Sign-in query result:", userRecord, userError);
 
       if (userError || !userRecord) {
         return { error: "Invalid email or access code" };
