@@ -1,7 +1,12 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = 'https://bzftqiuphsezewiydzog.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ6ZnRxaXVwaHNlemV3aXlkem9nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM2MTc5OTQsImV4cCI6MjA2OTE5Mzk5NH0.CK3pKtGCSgwfsY8Q8NkhVvscqXT1P_yT_-arv8-qWm0';
+// const supabaseUrl = "https://fbjgyeebdfcpcpzomyjo.supabase.co";
+// const supabaseAnonKey =
+//   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZiamd5ZWViZGZjcGNwem9teWpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3NjA0NTcsImV4cCI6MjA2OTMzNjQ1N30.M98rIucfwEVjduwfQBjTJAPFXFvc1islhT2T_rXiA3w";
+
+const supabaseUrl = "http://127.0.0.1:54321";
+const supabaseAnonKey =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
